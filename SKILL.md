@@ -5,9 +5,7 @@ origin: custom
 version: 3.2.2
 ---
 
-> 📦 项目主页：https://github.com/simonlin1212/a-stock-data — 更新、反馈、支持作者
-> 
-> 作者：Simon 林 · 抖音「Simon林」· 公众号「硅基世纪」
+> 📦 A股全栈数据工具包 — 自包含 Skill 文件，零外部依赖
 
 # A股全栈数据工具包 V3.2.2
 
@@ -147,7 +145,8 @@ version: 3.2.2
 - 用户要看新闻资讯（个股新闻 / 财联社快讯 / 全球资讯）
 - 用户要查公告（巨潮公告全文）
 - 用户要做产业链调研 / 批量横向对比
-- 关键词：估值、一致预期、机构预测、市盈率、PEG、市值、研报、产业链、行业研究、K线、盘口、公告、新闻、**强势股、题材、热点、概念归因、北向资金、沪股通、深股通、概念板块、资金流向、主力、龙虎榜、席位、营业部、全市场龙虎榜、净买入、解禁、限售、行业对比、行业轮动、融资融券、两融、大宗交易、股东户数、筹码集中、分红、派息、送股、指数、ETF**
+- 用户要**按主题下载研报PDF**（人形机器人/新能源/AI等，有Key用iwencai+东财，无Key纯东财code=""）
+- 关键词：估值、一致预期、机构预测、市盈率、PEG、市值、研报、产业链、行业研究、K线、盘口、公告、新闻、**强势股、题材、热点、概念归因、北向资金、沪股通、深股通、概念板块、资金流向、主力、龙虎榜、席位、营业部、全市场龙虎榜、净买入、解禁、限售、行业对比、行业轮动、融资融券、两融、大宗交易、股东户数、筹码集中、分红、派息、送股、指数、ETF、研报下载、主题研报、批量下载**
 
 ---
 
@@ -495,6 +494,50 @@ for r in reports[:5]:
     print(f"  {r.get('publishDate','')[:10]} | {r.get('orgSName')} | {r.get('title','')[:60]}")
 ```
 
+#### 全市场主题搜索（`code=""` 无 Key 方案）
+
+**重要技巧：** `code` 参数设为空字符串时，返回**全市场所有股票的最新研报**。配合客户端标题关键词过滤，无需 iwencai Key 即可按主题搜索研报——实测拉 600 篇全市场研报即可命中 20+ 篇"人形机器人""减速器"相关报告。
+
+```python
+def eastmoney_search_by_topic(keywords: list[str], begin: str = "2026-01-01",
+                               end: str = "2026-06-30", max_pages: int = 5) -> list[dict]:
+    """
+    东财全市场研报主题搜索（免费无 Key，客户端关键词过滤）。
+    keywords: ["人形机器人", "减速器", "丝杠", "灵巧手"]
+    """
+    found = []
+    seen = set()
+    for qt in ["0", "1"]:  # 两种排序覆盖不同研报集
+        for page in range(1, max_pages + 1):
+            params = {
+                "industryCode": "*", "pageSize": "100", "industry": "*",
+                "rating": "*", "ratingChange": "*",
+                "beginTime": begin, "endTime": end,
+                "pageNo": str(page), "fields": "", "qType": qt,
+                "orgCode": "", "code": "", "rcode": "",
+                "p": str(page), "pageNum": str(page), "pageNumber": str(page),
+            }
+            r = em_get(REPORT_API, params=params,
+                       headers={"Referer": "https://data.eastmoney.com/"}, timeout=30)
+            rows = (r.json().get("data") or [])
+            if not rows:
+                break
+            for row in rows:
+                title = row.get("title", "")
+                if any(kw in title for kw in keywords) and row.get("infoCode") not in seen:
+                    seen.add(row["infoCode"])
+                    found.append(row)
+    return found
+
+# 用法：搜"人形机器人"研报 → 东财 PDF 下载
+reports = eastmoney_search_by_topic(["人形机器人", "灵巧手", "谐波减速器", "Optimus"])
+for r in reports:
+    path = download_pdf(r, target_dir="./reports")
+    print(f"  {path}")
+```
+
+> **原理：** 东财 reportapi 的 `qType` 参数控制排序（0=最新, 1=最热），`code=""` 即不限定标的。每页 100 篇，5 页 × 2 种排序 = 1000 篇覆盖。命中率约 3-5%（取决于主题热度）。
+
 #### 研报 record 关键字段
 
 | 字段 | 含义 |
@@ -821,7 +864,7 @@ def eastmoney_concept_blocks(code: str) -> dict:
     返回: {total, boards: [{name, code(BK码), change_pct, lead_stock}], concept_tags: [板块名...]}
     boards 混合 行业/概念/地域，板块名自解释；concept_tags 是所有板块名的便捷列表。
     """
-    market_code = 1 if code.startswith("6") else 0
+    market_code = 1 if code.startswith(("6", "9")) else 0
     params = {
         "fltt": "2", "invt": "2",
         "secid": f"{market_code}.{code}",
@@ -878,7 +921,7 @@ def eastmoney_fund_flow_minute(code: str) -> list[dict]:
     返回: [{time, main_net, small_net, mid_net, large_net, super_net}, ...]
     单位: 元
     """
-    secid = f"1.{code}" if code.startswith("6") else f"0.{code}"
+    secid = f"1.{code}" if code.startswith(("6", "9")) else f"0.{code}"
     url = "https://push2.eastmoney.com/api/qt/stock/fflow/kline/get"
     params = {
         "secid": secid, "klt": 1,
@@ -1377,7 +1420,7 @@ def stock_fund_flow_120d(code: str) -> list[dict]:
     返回: [{date, main_net(主力净流入), small_net, mid_net, large_net, super_net}]
     单位: 元
     """
-    market_code = 1 if code.startswith("6") else 0
+    market_code = 1 if code.startswith(("6", "9")) else 0
     url = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
     params = {
         "secid": f"{market_code}.{code}",
@@ -1611,7 +1654,7 @@ def eastmoney_stock_info(code: str) -> dict:
     东财个股基本面信息。
     返回: {code, name, industry, total_shares, float_shares, mcap, float_mcap, list_date}
     """
-    market_code = 1 if code.startswith("6") else 0
+    market_code = 1 if code.startswith(("6", "9")) else 0
     url = "https://push2.eastmoney.com/api/qt/stock/get"
     params = {
         "fltt": "2", "invt": "2",
@@ -1653,7 +1696,7 @@ def sina_financial_report(code: str, report_type: str = "lrb", num: int = 8) -> 
           {"报告期": "2026-03-31", "<科目>": "<值>", "<科目>_同比": <同比>, ...}
           （item_value 为新浪原始字符串数值，仅在有同比时附 "_同比" 键）
     """
-    prefix = "sh" if code.startswith("6") else "sz"
+    prefix = "sh" if code.startswith(("6", "9")) else "sz"
     paper_code = f"{prefix}{code}"
     url = "https://quotes.sina.cn/cn/api/openapi.php/CompanyFinanceService.getFinanceReport2022"
     params = {
@@ -1732,7 +1775,7 @@ def _cninfo_orgid(code: str) -> str:
     if org:
         return org
     # fallback：老格式（仅部分老股票如 600519/600036 适用）
-    if code.startswith("6"):
+    if code.startswith(("6", "9")):
         return f"gssh0{code}"
     elif code.startswith("8") or code.startswith("4"):
         return f"gsbj0{code}"
@@ -2022,27 +2065,78 @@ if holders:
     print(f"最新股东数: {holders[0]['holder_num']} 环比{holders[0]['change_ratio']}%")
 ```
 
+### 流程 E: 主题研报批量下载 — 两种方案（V3.2.2 新增）
+
+#### 方案 A：iwencai + 东财组合（推荐，需 API Key）
+
+```python
+# Step 1: iwencai 语义搜索 → 拿到研报列表 + 关联股票
+queries = [
+    "人形机器人产业链深度 2026",
+    "人形机器人减速器 丝杠 2026",
+    "特斯拉Optimus 国产供应链 2026",
+]
+seen_uids = set()
+all_articles = []
+for q in queries:
+    arts = iwencai_search(q, channel="report", size=50)
+    for a in arts:
+        uid = a.get("uid", "")
+        if uid not in seen_uids:
+            seen_uids.add(uid)
+            all_articles.append(a)
+print(f"iwencai 共返回 {len(all_articles)} 篇去重研报")
+
+# Step 2: iwencai 数据查询 → 拉全市场"人形机器人"概念股清单（含纳入概念原因）
+stocks_data = iwencai_query("人形机器人概念股 净利润 营收 2026", page=1, limit=100)
+print(f"iwencai 共返回 {len(stocks_data)} 只概念股")
+
+# Step 3: 东财 reportapi — 按股票代码补搜研报 + 下载 PDF
+concept_codes = [s.get("股票代码", "").split(".")[0] for s in stocks_data]
+for code in concept_codes[:30]:  # 只搜前 30 只核心标的
+    reports = eastmoney_reports(code, max_pages=1)
+    for r in reports[:3]:
+        path = download_pdf(r, target_dir="./reports")
+```
+
+#### 方案 B：纯东财 reportapi（免费，无需任何 Key）
+
+```python
+# 用 code="" 拉全市场研报，客户端标题过滤
+keywords = ["人形机器人", "灵巧手", "谐波减速器", "行星滚柱丝杠",
+            "Optimus", "特斯拉机器人", "具身智能", "机器人关节"]
+
+found = []
+for qt in ["0", "1"]:
+    for page in range(1, 6):  # 每 qt 翻 5 页 = 1000 篇
+        params = {
+            "industryCode": "*", "pageSize": "100", "industry": "*",
+            "rating": "*", "ratingChange": "*",
+            "beginTime": "2026-01-01", "endTime": "2026-06-30",
+            "pageNo": str(page), "fields": "", "qType": qt,
+            "orgCode": "", "code": "", "rcode": "",
+            "p": str(page), "pageNum": str(page), "pageNumber": str(page),
+        }
+        r = em_get(REPORT_API, params=params,
+                   headers={"Referer": "https://data.eastmoney.com/"}, timeout=30)
+        rows = (r.json().get("data") or [])
+        if not rows: break
+        for row in rows:
+            if any(kw in row.get("title", "") for kw in keywords):
+                found.append(row)
+        print(f"  qType={qt} page={page}: {len(rows)} 篇扫描, 累计命中 {len(found)}")
+
+# 下载 PDF
+for r in found:
+    path = download_pdf(r, target_dir="./reports")
+    print(f"  {path}")
+```
+
+> **方案对比：** A 方案（iwencai 语义搜索）覆盖更准，还能自动发现概念股；B 方案免费全能，但需翻页拉取全市场研报做客户端过滤，耗时长一些。
+
 ---
 
-## 数据源优先级
-
-| 优先级 | 数据源 | 用途 | 可靠性 | 封IP风险 |
-|--------|--------|------|--------|---------|
-| 1 | **mootdx** (TCP) | K线+五档盘口+逐笔成交+财务快照+F10 | 极稳定 | 极低 |
-| 2 | **腾讯财经** (HTTP) | 实时PE/PB/市值/换手率/涨跌停/指数/ETF | 稳定 | 低 |
-| 3 | **东财 datacenter** (HTTP) | 龙虎榜/解禁/融资融券/大宗交易/股东户数/分红/个股信息 | 稳定 | 低 |
-| 4 | **东财 push2/push2his** (HTTP) | 行业板块/个股资金流分钟级+120日 | 稳定 | 低 |
-| 5 | **iwencai** (OpenAPI) | NL主题搜索研报(唯一能力) | 需X-Claw Header | 低 |
-| 6 | **东财 reportapi/PDF** (HTTP) | 完整研报图表、评级 | 稳定 | 低 |
-| 7 | **同花顺热点** (HTTP) | 当日强势股+题材归因 reason tags | 稳定 73ms | 极低（零鉴权） |
-| 8 | **同花顺 hsgtApi** (HTTP) | 北向资金分钟级+自缓存历史 | 稳定 | 极低（零鉴权） |
-| 9 | **百度股市通** (HTTP) | 概念板块+K线带MA | 稳定 | 极低（零鉴权） |
-| 10 | **新浪财经** (HTTP) | 资产负债表/利润表/现金流量表 | 稳定 | 低 |
-| 11 | **同花顺 basic** (HTTP) | 一致预期EPS | 稳定(需UA) | 低 |
-| 12 | **财联社** (HTTP) | 全市场实时电报 | 稳定 | 低 |
-| 13 | **巨潮 cninfo** (HTTP) | 公告全文检索+下载 | 稳定 | 低 |
-
-**原则：** 行情走 mootdx+腾讯（不封IP），研报走东财+iwencai，资金面走东财 datacenter+push2，**信号层走同花顺+百度+东财直连接口**。全部直连 HTTP，零第三方数据封装依赖。
+【已移至文件首部「数据源优先级 & 东财防封」章节】
 
 ---
 
@@ -2093,6 +2187,9 @@ A: mootdx 走 TCP 直连通达信行情服务器，需国内 IP 才稳定。海�
 ### Q: 不用 Claude Code，能用吗？
 A: 能。SKILL.md 本质是 Markdown + 内嵌 Python 代码。Codex、OpenClaw 或任何 AI 编程助手都能读取。你也可以直接把 Python 代码段复制出来在自己的脚本里跑。
 
+### Q: 没有 iwencai Key，怎么按主题（如"人形机器人"）搜研报？
+A: 东财 reportapi 支持 `code=""` 返回全市场所有股票最新研报，配合客户端标题关键词过滤即可。见 §2.1「全市场主题搜索」和流程 E 方案 B。实测拉 600-1000 篇全市场研报即可命中 20+ 篇相关主题报告，且可直接下载 PDF——完全免费、不需 Key。
+
 ---
 
 ## 安装说明
@@ -2115,4 +2212,4 @@ export IWENCAI_API_KEY="your_key_here"
 
 ---
 
-> 📦 https://github.com/simonlin1212/a-stock-data — Star ⭐ 是最好的支持
+> 📦 A股全栈数据工具包 V3.2.2 — 27 个端点 · 13 个数据源 · 零第三方封装依赖

@@ -45,7 +45,7 @@ mkdir -p ~/.claude/skills/a-stock-data
 
 # 2. 把 SKILL.md 放进去
 curl -o ~/.claude/skills/a-stock-data/SKILL.md \
-  https://raw.githubusercontent.com/simonlin1212/a-stock-data/main/SKILL.md
+  https://raw.githubusercontent.com/astock-data/a-stock-data/main/SKILL.md
 
 # 3. 安装依赖（V3.0 不再需要 akshare）
 pip install mootdx requests pandas stockstats
@@ -236,20 +236,6 @@ V2.1 改为本地自缓存。每次调用自动积累，越跑越丰富。首次
 
 ---
 
-## Donate
-
-如果这个工具帮到了你的投研工作流，欢迎请作者喝杯咖啡 ☕
-
-<p align="center">
-  <img src="./assets/wechat-sponsor.jpg" width="240" alt="微信赞赏码">
-</p>
-<p align="center">
-  <a href="https://ifdian.net/a/simonlin">爱发电</a> ·
-  <a href="https://buymeacoffee.com/simonlin1212">Buy Me a Coffee</a>
-</p>
-
-> 想要什么数据端点？欢迎开 [Issue](https://github.com/simonlin1212/a-stock-data/issues) 提需求，赞助者的 Issue 优先处理。
-
 ---
 
 ## Disclaimer
@@ -262,7 +248,6 @@ V2.1 改为本地自缓存。每次调用自动积累，越跑越丰富。首次
 
 [Apache License 2.0](./LICENSE) — 自由使用，注明出处即可。
 
-**作者：** Simon 林 · 抖音「Simon林」 · 公众号「硅基世纪」
 
 ---
 
@@ -316,7 +301,7 @@ mkdir -p ~/.claude/skills/a-stock-data
 
 # 2. Download SKILL.md
 curl -o ~/.claude/skills/a-stock-data/SKILL.md \
-  https://raw.githubusercontent.com/simonlin1212/a-stock-data/main/SKILL.md
+  https://raw.githubusercontent.com/astock-data/a-stock-data/main/SKILL.md
 
 # 3. Install dependencies (V3.0: akshare no longer needed)
 pip install mootdx requests pandas stockstats
@@ -474,7 +459,6 @@ This project provides data access tools only and does not constitute investment 
 
 [Apache License 2.0](./LICENSE)
 
-**Author:** Simon Lin · TikTok [@simonlin121212](https://www.tiktok.com/@simonlin121212) · Douyin "Simon林" · WeChat Official Account "硅基世纪"
 
 </details>
 
